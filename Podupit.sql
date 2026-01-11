@@ -247,18 +247,17 @@ HAVING SUM(s.UkupnaCijena) > 20000000
 
 --Vratiti sve proizvode koji imaju dodijeljenu potkategoriju i koji su prodani u količini većoj od 5000. Uz svaki proizvod vratiti prodanu količinu i naziv kategorije.
 
-SELECT p.Naziv AS NazivProizvoda, 
-(SELECT SUM(s.Kolicina) 
-     FROM Stavka s 
-     WHERE s.ProizvodID = p.IDProizvod) AS UkupnoProdano
-SUM(s.Kolicina) AS UkupnoProdano,
-k.Naziv AS NazivKategorije
-FROM Proizvod p
-GROUP BY p.Naziv, k.Naziv
-HAVING SUM(s.Kolicina) > 5000
 
-
-
+SELECT p.IDProizvod, p.Naziv AS NazivProizvoda, 
+SUM(s.Kolicina) AS UkupnoProdano, 
+k.Naziv AS NazivKategorije 
+FROM Proizvod p 
+INNER JOIN Potkategorija pk ON p.PotkategorijaID = pk.IDPotkategorija 
+INNER JOIN Kategorija k ON pk.KategorijaID = k.IDKategorija 
+INNER JOIN Stavka s ON p.IDProizvod = s.ProizvodID 
+GROUP BY p.IDProizvod, p.Naziv, k.Naziv 
+HAVING SUM(s.Kolicina) > 5000 
+ORDER BY UkupnoProdano DESC;
 
 
 --Upit u FROM dijelu je privremena tablica
@@ -271,4 +270,5 @@ FROM (
 ) AS Podaci
 WHERE Podaci.Kolicina > 10
 ORDER BY Podaci.Kolicina DESC;
+
 
