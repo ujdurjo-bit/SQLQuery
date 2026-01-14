@@ -1,4 +1,4 @@
-﻿/*Optimizirajte upit: SELECT DatumIzdavanja FROM Racun WHERE DatumIzdavanja BETWEEN '20010702' AND '20010702 23:59:59' 
+/*Optimizirajte upit: SELECT DatumIzdavanja FROM Racun WHERE DatumIzdavanja BETWEEN '20010702' AND '20010702 23:59:59' 
 Koliko stranica je pregledao RDBMS?
 Napravite indeks koji optimizira upit
 Koliko sad stranica pregled RDBMS?
@@ -185,10 +185,19 @@ BEGIN
 
 END
 
-
-
-
-
+GO
+BEGIN TRAN
+	BEGIN TRY
+		EXEC ObrisiProizvod @IDProizvod = 1001;
+		EXEC ObrisiProizvod @IDProizvod = 1002;
+		EXEC ObrisiProizvod @IDProizvod = 1003;
+		COMMIT
+		END TRY
+		BEGIN CATCH
+			IF @@TRANCOUNT > 0
+				ROLLBACK
+			END CATCH
+END
 
 
 --DZ: Optimizirajte upit: SELECT IDRacun, DatumIzdavanja FROM Racun WHERE DatumIzdavanja BETWEEN '20010702' AND '20010702 23:59:59' 
@@ -206,4 +215,91 @@ DROP INDEX IX_DatumIzdavanja ON Racun
 
 
 
+/*Osigurajte da u tablici Drzava ne mogu postojati dvije države s istim nazivom. 
+Napišite proceduru koja prima 1 XML parametar koji sadržava podatke potrebne za umetnuti novu državu i tri njena grada. Transakciju vodite unutar procedure. Ispišite uspjeh ili neuspjeh. 
+Pozovite proceduru 2 puta s istim XML dokumentom kao parametrom.*/
 
+GO
+CREATE PROCEDURE DodajDrzavuIGradove
+    @InputXML XML
+AS
+BEGIN
+    BEGIN TRY
+        BEGIN TRANSACTION;
+
+        DECLARE @NazivDrzave NVARCHAR(100);
+        DECLARE @IDDrzava INT;
+
+        
+        SET @NazivDrzave = @InputXML.value('(/podaci/drzava)[1]', 'NVARCHAR(100)');
+
+      
+        INSERT INTO Drzava (Naziv)
+        VALUES (@NazivDrzave);
+
+        SET @IDDrzava = SCOPE_IDENTITY();
+
+        
+        INSERT INTO Grad (Naziv, DrzavaID)
+        SELECT
+            x.value('.', 'NVARCHAR(100)'),
+            @IDDrzava
+        FROM @InputXML.nodes('/podaci/grad') AS T(x);
+
+        COMMIT;
+        PRINT 'Uspjeh: Država i gradovi su umetnuti.';
+    END TRY
+    BEGIN CATCH
+        ROLLBACK;
+        PRINT 'Neuspjeh: Došlo je do greške.';
+    END CATCH
+END;
+
+
+DECLARE @xml XML = '
+<podaci>
+    <drzava>Hrvatska</drzava>
+    <grad>MAlino</grad>
+    <grad>Vž</grad>
+    <grad>Daruvar</grad>
+</podaci>';
+
+EXEC DodajDrzavuIGradove @InputXML = @xml;
+EXEC DodajDrzavuIGradove @InputXML = @xml;
+
+GO
+
+
+
+
+/*
+Unutar vanjske transakcije pozovite prethodnu proceduru s nekim drugim parametrom. 
+Nakon toga odustanite od vanjske transakcije. Ispišite uspjeh ili neuspjeh. 
+Je li umetanje napravljeno?
+
+*/
+
+GO
+
+DECLARE @xml2 XML = '
+<podaci>
+    <drzava>Srbija</drzava>
+    <grad>Beograd</grad>
+    <grad>Novi Sad</grad>
+    <grad>Niš</grad>
+</podaci>';
+
+BEGIN TRANSACTION;
+
+BEGIN TRY
+    
+    EXEC DodajDrzavuIGradove @InputXML = @xml2;
+    
+    ROLLBACK;
+
+    PRINT 'Neuspjeh: Vanjska transakcija je odustala.';
+END TRY
+BEGIN CATCH
+    ROLLBACK;
+    PRINT 'Neuspjeh: Došlo je do greške u vanjskoj transakciji.';
+END CATCH;
